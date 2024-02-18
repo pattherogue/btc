@@ -32,9 +32,9 @@ def preprocess_data(data):
     Returns:
         pd.DataFrame: Preprocessed Bitcoin price data.
     """
-    # Extract timestamps and prices from the data dictionary
-    timestamps = [ts / 1000 for ts in data['prices']]
-    prices = [price for _, price in data['prices']]
+  # Extract timestamps and prices from the data dictionary
+    timestamps = [ts[0] / 1000 for ts in data['prices']]
+    prices = [price[1] for price in data['prices']]
     
     # Convert timestamps to datetime objects
     dates = [datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d') for ts in timestamps]
