@@ -2,70 +2,113 @@ import requests
 import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
-from statsmodels.tsa.arima.model import ARIMA
 from sklearn.metrics import mean_absolute_error
-from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+from sklearn.model_selection import TimeSeriesSplit
+from statsmodels.tsa.api import ExponentialSmoothing
+from statsmodels.tsa.arima.model import ARIMA
 
-# Function for hyperparameter tuning
-def tune_hyperparameters(train_data):
+# Function for fetching Bitcoin data
+def fetch_bitcoin_data():
     """
-    Fine-tunes the hyperparameters of the ARIMA model using grid search.
-
-    Args:
-        train_data (pd.DataFrame): Training data for Bitcoin prices.
+    Fetches historical Bitcoin price data from the CoinGecko API.
 
     Returns:
-        dict: Optimal hyperparameters found through grid search.
+        dict: Bitcoin price data in JSON format.
     """
-    # Convert Date column to datetime format and set as index
-    train_data['Date'] = pd.to_datetime(train_data['Date'])
-    train_data.set_index('Date', inplace=True)
-    
-    # Define parameter grid for ARIMA model
-    p_values = range(0, 6)
-    d_values = range(0, 3)
-    q_values = range(0, 3)
-    param_grid = dict(order=(p_values, d_values, q_values))
-    
-    # Define time series split for cross-validation
-    tscv = TimeSeriesSplit(n_splits=5)
-    
-    # Grid search for hyperparameter tuning
-    model = ARIMA(train_data['Price'], order=(5, 1, 0))  # Initial model order
-    grid = GridSearchCV(estimator=model, param_grid=param_grid, scoring='neg_mean_absolute_error', cv=tscv)
-    grid_result = grid.fit(train_data)
-    
-    # Get best hyperparameters
-    best_params = grid_result.best_params_
-    return best_params
+    url = 'https://api.coingecko.com/api/v3/coins/bitcoin/market_chart'
+    params = {
+        'vs_currency': 'usd',
+        'days': '365',  # Fetch data for the last year
+        'interval': 'daily'
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+    return data
 
-# Function for cross-validation
-def perform_cross_validation(model, train_data):
+# Function for preprocessing Bitcoin data
+def preprocess_data(data):
     """
-    Performs cross-validation on the ARIMA model using time series split.
+    Preprocesses the fetched Bitcoin price data.
 
     Args:
-        model (statsmodels.tsa.arima.ARIMAResultsWrapper): Trained ARIMA model.
-        train_data (pd.DataFrame): Training data for Bitcoin prices.
+        data (dict): Bitcoin price data in JSON format.
 
     Returns:
-        float: Mean Absolute Error (MAE) from cross-validation.
+        pd.DataFrame: Preprocessed Bitcoin price data.
     """
-    # Define time series split for cross-validation
+    # Extract timestamps and prices from the data dictionary
+    timestamps = [ts for ts, _ in data['prices']]
+    prices = [price for _, price in data['prices']]
+    
+    # Convert timestamps to datetime objects
+    dates = [datetime.datetime.fromtimestamp(ts / 1000).strftime('%Y-%m-%d') for ts in timestamps]
+    
+    # Create DataFrame
+    df = pd.DataFrame({'Date': dates, 'Price': prices})
+    return df
+
+# Function for model selection and evaluation
+def select_and_evaluate_model(data):
+    """
+    Selects and evaluates models for time series forecasting.
+
+    Args:
+        data (pd.DataFrame): Preprocessed Bitcoin price data.
+
+    Returns:
+        dict: Evaluation results for each model.
+    """
+    evaluation_results = {}
+
+    # Split data for time series cross-validation
     tscv = TimeSeriesSplit(n_splits=5)
-    
-    # Perform cross-validation
-    mae_scores = []
-    for train_index, test_index in tscv.split(train_data):
-        train_split, test_split = train_data.iloc[train_index], train_data.iloc[test_index]
-        arima_model = model.fit(train_split['Price'])
-        predictions = arima_model.forecast(steps=len(test_split))
-        mae = mean_absolute_error(test_split['Price'], predictions)
-        mae_scores.append(mae)
-    
-    # Calculate mean MAE from cross-validation
-    mean_mae = sum(mae_scores) / len(mae_scores)
-    return mean_mae
+
+    # Define models
+    models = [
+        ('Exponential Smoothing', ExponentialSmoothing),
+        ('ARIMA', ARIMA)
+    ]
+
+    for model_name, model_class in models:
+        print(f"Evaluating {model_name}...")
+        mae_scores = []
+        for train_index, test_index in tscv.split(data):
+            train_data = data.iloc[train_index]
+            test_data = data.iloc[test_index]
+
+            # Fit model
+            model = model_class(train_data['Price'])
+            model_fit = model.fit()
+
+            # Make predictions
+            forecast = model_fit.forecast(len(test_data))
+
+            # Calculate MAE
+            mae = mean_absolute_error(test_data['Price'], forecast)
+            mae_scores.append(mae)
+
+        evaluation_results[model_name] = mae_scores
+
+    return evaluation_results
+
+# Function for visualizing model evaluation results
+def visualize_evaluation_results(evaluation_results):
+    """
+    Visualizes the evaluation results for different models.
+
+    Args:
+        evaluation_results (dict): Evaluation results for each model.
+    """
+    plt.figure(figsize=(10, 6))
+    for model_name, scores in evaluation_results.items():
+        plt.plot(range(1, len(scores) + 1), scores, label=model_name)
+    plt.title('Model Evaluation Results')
+    plt.xlabel('Fold')
+    plt.ylabel('Mean Absolute Error')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
 # Main function
 def main():
@@ -77,21 +120,12 @@ def main():
     
     # Preprocess the fetched data
     preprocessed_data = preprocess_data(bitcoin_data)
+
+    # Select and evaluate models
+    evaluation_results = select_and_evaluate_model(preprocessed_data)
     
-    # Split data into train and test sets
-    train_data, _ = split_data(preprocessed_data)
-    
-    # Tune hyperparameters
-    best_params = tune_hyperparameters(train_data)
-    print("Best Hyperparameters:", best_params)
-    
-    # Train ARIMA model with best hyperparameters
-    arima_model = ARIMA(train_data['Price'], order=best_params['order'])
-    arima_model_fit = arima_model.fit()
-    
-    # Perform cross-validation
-    mean_mae = perform_cross_validation(arima_model_fit, train_data)
-    print("Mean MAE from Cross-Validation:", mean_mae)
+    # Visualize model evaluation results
+    visualize_evaluation_results(evaluation_results)
 
 if __name__ == "__main__":
     main()
