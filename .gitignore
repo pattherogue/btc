@@ -1,0 +1,21 @@
+# Ignore Python bytecode files
+__pycache__/
+
+# Ignore environment directory
+env/
+
+# Ignore log files
+*.log
+
+# Ignore any files generated during development or testing
+*.csv
+*.xlsx
+*.pkl
+
+# Ignore IDE-specific files
+.vscode/
+.idea/
+
+# Ignore any sensitive or private information
+config.ini
+secrets.json
