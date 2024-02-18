@@ -20,7 +20,7 @@ Dependencies:
 - statsmodels
 
 Contributing:
-- We welcome contributions! Feel free to open issues, suggest improvements, or submit pull requests.
+- Contributions are welcome! Feel free to open issues, suggest improvements, or submit pull requests.
 
 License:
 - This project is licensed under the MIT License.
