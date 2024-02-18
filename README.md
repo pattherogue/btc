@@ -1,25 +1,31 @@
-Project Title: Bitcoin Price Analysis
+Bitcoin Price Forecasting Project
 
-Description:
-This project aims to analyze historical Bitcoin price data using data science techniques. It fetches data from the CoinGecko API, preprocesses it, calculates basic statistics, and visualizes the Bitcoin price over time.
+This project fetches historical Bitcoin price data from the CoinGecko API, preprocesses the data, selects and evaluates models for time series forecasting, and visualizes the evaluation results.
 
-Requirements:
-- Python 3.x
-- Requests library (install using 'pip install requests')
-- Matplotlib library (install using 'pip install matplotlib')
+Setup:
+1. Clone the repository: git clone <repository_url>
+2. Install the required Python packages: pip install -r requirements.txt
 
 Usage:
-1. Ensure you have Python installed on your system.
-2. Install the required libraries using the provided commands.
-3. Run the 'main.py' script to fetch, preprocess, analyze, and visualize Bitcoin price data.
+1. Run the main.py script: python main.py
+2. The script will fetch Bitcoin price data, preprocess it, select and evaluate models, and visualize the evaluation results.
 
-Contents:
-- main.py: Main Python script containing functions for fetching, preprocessing, analyzing, and visualizing Bitcoin price data.
-- README.txt: This file, providing an overview of the project, instructions for usage, and other relevant details.
+File Structure:
+- main.py: Main script to execute the project.
+- README.txt: This file.
+- requirements.txt: List of required Python packages.
+- [Other files if any]
+
+Dependencies:
+- requests: For fetching data from the CoinGecko API.
+- datetime: For date and time operations.
+- matplotlib: For data visualization.
+- pandas: For data manipulation and analysis.
+- scikit-learn: For machine learning models and evaluation metrics.
+- statsmodels: For time series analysis and modeling.
 
 Contributing:
-Contributions to this project are welcome. If you have suggestions for improvements or new features, please create a pull request or open an issue on the GitHub repository.
+- Contributions are welcome! Please feel free to open an issue or submit a pull request.
 
 License:
-This project is licensed under the MIT License. See the LICENSE file for more details.
-
+- This project is licensed under the MIT License. See the LICENSE file for details.
