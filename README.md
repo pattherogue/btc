@@ -25,8 +25,5 @@ Contributing:
 License:
 - This project is licensed under the MIT License.
 
-Contact:
-- For inquiries or collaborations, contact [Your Name] at [your_email@example.com].
-
 Enjoy exploring Bitcoin price forecasting!
 
