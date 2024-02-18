@@ -2,121 +2,70 @@ import requests
 import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
-from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.arima.model import ARIMA
+from sklearn.metrics import mean_absolute_error
+from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 
-# Function for fetching Bitcoin data
-def fetch_bitcoin_data():
+# Function for hyperparameter tuning
+def tune_hyperparameters(train_data):
     """
-    Fetches historical Bitcoin price data from the CoinGecko API.
+    Fine-tunes the hyperparameters of the ARIMA model using grid search.
+
+    Args:
+        train_data (pd.DataFrame): Training data for Bitcoin prices.
 
     Returns:
-        dict: Bitcoin price data in JSON format.
+        dict: Optimal hyperparameters found through grid search.
     """
-    url = 'https://api.coingecko.com/api/v3/coins/bitcoin/market_chart'
-    params = {
-        'vs_currency': 'usd',
-        'days': '365',  # Fetch data for the last year
-        'interval': 'daily'
-    }
-    response = requests.get(url, params=params)
-    data = response.json()
-    return data
-
-# Function for preprocessing Bitcoin data
-def preprocess_data(data):
-    """
-    Preprocesses the fetched Bitcoin price data.
-
-    Args:
-        data (dict): Bitcoin price data in JSON format.
-
-    Returns:
-        pd.DataFrame: Preprocessed Bitcoin price data.
-    """
-    # Extract timestamps and prices from the data dictionary
-    timestamps = [ts for ts, _ in data['prices']]
-    prices = [price for _, price in data['prices']]
-    
-    # Convert timestamps to datetime objects
-    dates = [datetime.datetime.fromtimestamp(ts / 1000).strftime('%Y-%m-%d') for ts in timestamps]
-    
-    # Create DataFrame
-    df = pd.DataFrame({'Date': dates, 'Price': prices})
-    return df
-
-# Function for visualizing Bitcoin price data over time
-def visualize_bitcoin_price(data):
-    """
-    Visualizes the Bitcoin price over time.
-
-    Args:
-        data (pd.DataFrame): Bitcoin price data in DataFrame format.
-    """
-    plt.figure(figsize=(10, 6))
-    plt.plot(data['Date'], data['Price'], color='blue', marker='o', linestyle='-')
-    plt.title('Bitcoin Price Over Time')
-    plt.xlabel('Date')
-    plt.ylabel('Price (USD)')
-    plt.xticks(rotation=45)
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-# Function for calculating basic statistics of Bitcoin prices
-def calculate_basic_statistics(data):
-    """
-    Calculates basic statistics of Bitcoin prices.
-
-    Args:
-        data (pd.DataFrame): Bitcoin price data in DataFrame format.
-
-    Prints:
-        Basic statistics such as mean, median, minimum, and maximum prices.
-    """
-    mean_price = data['Price'].mean()
-    median_price = data['Price'].median()
-    min_price = data['Price'].min()
-    max_price = data['Price'].max()
-    
-    print("Basic Statistics:")
-    print(f"Mean Price: {mean_price:.2f} USD")
-    print(f"Median Price: {median_price:.2f} USD")
-    print(f"Minimum Price: {min_price:.2f} USD")
-    print(f"Maximum Price: {max_price:.2f} USD")
-
-# Function for performing time series analysis
-def perform_time_series_analysis(data):
-    """
-    Performs time series analysis on Bitcoin price data.
-
-    Args:
-        data (pd.DataFrame): Bitcoin price data in DataFrame format.
-
-    Returns:
-        None
-    """
-    # Convert data to DataFrame
-    df = data.copy()
-    
     # Convert Date column to datetime format and set as index
-    df['Date'] = pd.to_datetime(df['Date'])
-    df.set_index('Date', inplace=True)
+    train_data['Date'] = pd.to_datetime(train_data['Date'])
+    train_data.set_index('Date', inplace=True)
+    
+    # Define parameter grid for ARIMA model
+    p_values = range(0, 6)
+    d_values = range(0, 3)
+    q_values = range(0, 3)
+    param_grid = dict(order=(p_values, d_values, q_values))
+    
+    # Define time series split for cross-validation
+    tscv = TimeSeriesSplit(n_splits=5)
+    
+    # Grid search for hyperparameter tuning
+    model = ARIMA(train_data['Price'], order=(5, 1, 0))  # Initial model order
+    grid = GridSearchCV(estimator=model, param_grid=param_grid, scoring='neg_mean_absolute_error', cv=tscv)
+    grid_result = grid.fit(train_data)
+    
+    # Get best hyperparameters
+    best_params = grid_result.best_params_
+    return best_params
 
-    # Perform seasonal decomposition
-    decomposition = seasonal_decompose(df['Price'], model='additive', period=30)  # Adjust period as needed
+# Function for cross-validation
+def perform_cross_validation(model, train_data):
+    """
+    Performs cross-validation on the ARIMA model using time series split.
 
-    # Plotting the decomposition
-    plt.figure(figsize=(10, 6))
-    decomposition.trend.plot(label='Trend')
-    decomposition.seasonal.plot(label='Seasonality')
-    decomposition.resid.plot(label='Residuals')
-    plt.title('Time Series Decomposition of Bitcoin Prices')
-    plt.xlabel('Date')
-    plt.ylabel('Price (USD)')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+    Args:
+        model (statsmodels.tsa.arima.ARIMAResultsWrapper): Trained ARIMA model.
+        train_data (pd.DataFrame): Training data for Bitcoin prices.
+
+    Returns:
+        float: Mean Absolute Error (MAE) from cross-validation.
+    """
+    # Define time series split for cross-validation
+    tscv = TimeSeriesSplit(n_splits=5)
+    
+    # Perform cross-validation
+    mae_scores = []
+    for train_index, test_index in tscv.split(train_data):
+        train_split, test_split = train_data.iloc[train_index], train_data.iloc[test_index]
+        arima_model = model.fit(train_split['Price'])
+        predictions = arima_model.forecast(steps=len(test_split))
+        mae = mean_absolute_error(test_split['Price'], predictions)
+        mae_scores.append(mae)
+    
+    # Calculate mean MAE from cross-validation
+    mean_mae = sum(mae_scores) / len(mae_scores)
+    return mean_mae
 
 # Main function
 def main():
@@ -129,14 +78,20 @@ def main():
     # Preprocess the fetched data
     preprocessed_data = preprocess_data(bitcoin_data)
     
-    # Calculate basic statistics
-    calculate_basic_statistics(preprocessed_data)
+    # Split data into train and test sets
+    train_data, _ = split_data(preprocessed_data)
     
-    # Visualize Bitcoin price over time
-    visualize_bitcoin_price(preprocessed_data)
+    # Tune hyperparameters
+    best_params = tune_hyperparameters(train_data)
+    print("Best Hyperparameters:", best_params)
     
-    # Perform time series analysis
-    perform_time_series_analysis(preprocessed_data)
+    # Train ARIMA model with best hyperparameters
+    arima_model = ARIMA(train_data['Price'], order=best_params['order'])
+    arima_model_fit = arima_model.fit()
+    
+    # Perform cross-validation
+    mean_mae = perform_cross_validation(arima_model_fit, train_data)
+    print("Mean MAE from Cross-Validation:", mean_mae)
 
 if __name__ == "__main__":
     main()
