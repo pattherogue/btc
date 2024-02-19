@@ -3,8 +3,8 @@ Bitcoin Price Forecasting Project
 Overview:
 ---------
 This project focuses on forecasting Bitcoin prices using time series analysis 
-techniques. By leveraging historical price data and advanced forecasting models, 
-we aim to provide insights into future price trends.
+techniques. Leveraging historical price data and advanced forecasting models, 
+the aim is to provide insights into future price trends.
 
 Setup:
 ------
